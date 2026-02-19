@@ -2,262 +2,267 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stock News - 미국 주식 뉴스</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ScrollStock — 미국 주식 뉴스</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
-    #root { width: 100vw; height: 100vh; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    .tier-divider { animation: fadeIn 0.5s ease-out; }
-    .settings-scroll::-webkit-scrollbar { width: 6px; }
-    .settings-scroll::-webkit-scrollbar-track { background: transparent; }
-    .settings-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    .slide-up { animation: slideUp 0.2s ease-out; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{overflow:hidden;font-family:'Outfit','Noto Sans KR',sans-serif;background:#000}
+    #root{width:100vw;height:100vh}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+    @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes breathe{0%,100%{box-shadow:0 0 20px rgba(255,255,255,0.05)}50%{box-shadow:0 0 40px rgba(255,255,255,0.1)}}
+    .fade-up{animation:fadeUp .6s ease-out both}
+    .fade-in{animation:fadeIn .4s ease both}
+    .slide-up{animation:slideUp .2s ease-out}
+    .glass{background:rgba(255,255,255,.06);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.08)}
+    .glass-strong{background:rgba(255,255,255,.1);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border:1px solid rgba(255,255,255,.12)}
+    .scroll-area::-webkit-scrollbar{width:4px}
+    .scroll-area::-webkit-scrollbar-track{background:transparent}
+    .scroll-area::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:2px}
+    .news-card{animation:breathe 4s ease-in-out infinite}
+    .breaking-glow{box-shadow:0 0 60px rgba(239,68,68,.15),0 0 120px rgba(239,68,68,.05)}
+    .ticker-pill{font-size:11px;font-weight:700;letter-spacing:.5px;padding:4px 12px;border-radius:100px}
+    .impact-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+    @media(max-width:640px){.news-title{font-size:1.5rem!important}.news-content{font-size:.95rem!important}}
   </style>
 </head>
 <body>
-  <div id="root">
-    <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000;">
-      <div style="text-align:center;color:white;">
-        <div style="font-size:48px;margin-bottom:20px;">📊</div>
-        <div style="font-size:20px;">로딩 중...</div>
-      </div>
-    </div>
-  </div>
+  <div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000"><div style="text-align:center;color:white;font-family:Outfit"><div style="font-size:48px;margin-bottom:20px">📊</div><div style="font-size:18px;opacity:.6;letter-spacing:2px">SCROLLSTOCK</div></div></div></div>
   <script>
-    const { useState, useEffect, useRef, useCallback } = React;
-    const e = React.createElement;
+    const{useState,useEffect,useRef,useCallback}=React;const e=React.createElement;const API='';
+    function loadS(k,d){try{const s=localStorage.getItem(k);if(s!==null)return JSON.parse(s)}catch(e){}return d}
+    function saveS(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 
-    // API base URL: 상대 경로 (같은 서버)
-    const API = '';
+    function App(){
+      const[idx,setIdx]=useState(0);
+      const[news,setNews]=useState([]);
+      const[loading,setLoading]=useState(true);
+      const[showSet,setShowSet]=useState(false);
+      const[tickers,setTickers]=useState(()=>loadS('ss_tickers',['TSLA','AAPL','NVDA','MSFT']));
+      const[newT,setNewT]=useState('');
+      const[lang,setLang]=useState(()=>loadS('ss_lang','ko'));
+      const[err,setErr]=useState(null);
+      const[tErr,setTErr]=useState(null);
+      const[sugg,setSugg]=useState([]);
+      const[validating,setValidating]=useState(false);
+      const lastScroll=useRef(0);
 
-    function loadSaved(key, def) { try { const s = localStorage.getItem(key); if (s !== null) return JSON.parse(s); } catch(e){} return def; }
-    function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} }
+      useEffect(()=>{saveS('ss_tickers',tickers)},[tickers]);
+      useEffect(()=>{saveS('ss_lang',lang)},[lang]);
 
-    function StockNewsApp() {
-      const [currentIndex, setCurrentIndex] = useState(0);
-      const [news, setNews] = useState([]);
-      const [loading, setLoading] = useState(false);
-      const [showSettings, setShowSettings] = useState(false);
-      const [tickers, setTickers] = useState(() => loadSaved('stocknews_tickers', ['TSLA','AAPL','NVDA','MSFT']));
-      const [newTicker, setNewTicker] = useState('');
-      const [language, setLanguage] = useState(() => loadSaved('stocknews_language', 'ko'));
-      const [error, setError] = useState(null);
-      const [tickerError, setTickerError] = useState(null);
-      const [suggestions, setSuggestions] = useState([]);
-      const [validating, setValidating] = useState(false);
-      const touchStartY = useRef(0);
-      const lastScrollTime = useRef(0);
-
-      useEffect(() => { save('stocknews_tickers', tickers); }, [tickers]);
-      useEffect(() => { save('stocknews_language', language); }, [language]);
-
-      const t = {
-        ko: {
-          loadingNews: '뉴스를 불러오는 중...',
-          errorTitle: '뉴스를 불러올 수 없습니다',
-          errorContent: '서버 연결을 확인하고 다시 시도해주세요.',
-          refreshNews: '뉴스 새로고침',
-          tickerManagement: '설정',
-          addNewTicker: '새 티커 추가',
-          currentTickers: '현재 추적 중인 티커',
-          language: '언어', korean: '한국어', english: 'English',
-          positive: '↑ 긍정', negative: '↓ 부정', neutral: '∼ 중립',
-          invalidTicker: '유효하지 않은 티커입니다',
-          didYouMean: '혹시 이 티커를 찾으셨나요?',
-          duplicateTicker: '이미 추가된 티커입니다',
-          autoSaved: '✅ 설정은 자동 저장됩니다'
-        },
-        en: {
-          loadingNews: 'Loading news...',
-          errorTitle: 'Failed to Load News',
-          errorContent: 'Please check the connection and try again.',
-          refreshNews: 'Refresh News',
-          tickerManagement: 'Settings',
-          addNewTicker: 'Add New Ticker',
-          currentTickers: 'Tracking Tickers',
-          language: 'Language', korean: '한국어', english: 'English',
-          positive: '↑ Positive', negative: '↓ Negative', neutral: '∼ Neutral',
-          invalidTicker: 'Invalid ticker symbol',
-          didYouMean: 'Did you mean one of these?',
-          duplicateTicker: 'Ticker already added',
-          autoSaved: '✅ Settings are auto-saved'
-        }
+      const T={
+        ko:{loading:'뉴스를 불러오는 중...',errTitle:'연결 오류',errMsg:'서버 연결을 확인하고 다시 시도해주세요.',refresh:'새로고침',settings:'설정',addTicker:'티커 추가',tracking:'추적 중',language:'언어',korean:'한국어',english:'English',pos:'긍정',neg:'부정',neu:'중립',invalidT:'유효하지 않은 티커',didYouMean:'이런 티커를 찾으셨나요?',dupT:'이미 추가됨',autoSave:'설정은 자동 저장됩니다'},
+        en:{loading:'Loading news...',errTitle:'Connection Error',errMsg:'Check connection and try again.',refresh:'Refresh',settings:'Settings',addTicker:'Add Ticker',tracking:'Tracking',language:'Language',korean:'한국어',english:'English',pos:'Positive',neg:'Negative',neu:'Neutral',invalidT:'Invalid ticker',didYouMean:'Did you mean?',dupT:'Already added',autoSave:'Settings auto-saved'}
       };
 
-      useEffect(() => { fetchNews(); }, []);
+      const fetchNews=async()=>{
+        setLoading(true);setErr(null);
+        try{
+          const res=await fetch(API+"/api/news",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tickers,language:lang})});
+          if(!res.ok)throw new Error('Server error');
+          const data=await res.json();
+          if(data.success&&data.news?.length>0){setNews(data.news);setIdx(0);setErr(null)}
+          else throw new Error('No news');
+        }catch(err){setErr(err.message);setNews([])}
+        finally{setLoading(false)}
+      };
+      useEffect(()=>{fetchNews()},[]);
 
-      const fetchNews = async () => {
-        setLoading(true); setError(null);
-        try {
-          const res = await fetch(API + "/api/news", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ tickers, language })
-          });
-          if (!res.ok) throw new Error('Server error');
-          const data = await res.json();
-          if (data.success && data.news && data.news.length > 0) {
-            setNews(data.news); setCurrentIndex(0); setError(null);
-          } else throw new Error(data.error || 'No news');
-        } catch (err) { setError(err.message); setNews([]); }
-        finally { setLoading(false); }
+      const validateAdd=async(ts)=>{
+        const t=(ts||newT).trim().toUpperCase();if(!t)return;
+        if(tickers.includes(t)){setTErr(T[lang].dupT);setSugg([]);return}
+        setValidating(true);setTErr(null);setSugg([]);
+        try{
+          const res=await fetch(API+"/api/validate-ticker",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ticker:t})});
+          const data=await res.json();
+          if(data.valid){setTickers([...tickers,data.ticker]);setNewT('');setTErr(null);setSugg([])}
+          else{setTErr(T[lang].invalidT);if(data.suggestions?.length)setSugg(data.suggestions)}
+        }catch(e){setTickers([...tickers,t]);setNewT('');setTErr(null);setSugg([])}
+        finally{setValidating(false)}
       };
 
-      const validateAndAdd = async (tickerStr) => {
-        const ticker = (tickerStr || newTicker).trim().toUpperCase();
-        if (!ticker) return;
-        if (tickers.includes(ticker)) { setTickerError(t[language].duplicateTicker); setSuggestions([]); return; }
-        setValidating(true); setTickerError(null); setSuggestions([]);
-        try {
-          const res = await fetch(API + "/api/validate-ticker", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ticker })
-          });
-          const data = await res.json();
-          if (data.valid) { setTickers([...tickers, data.ticker]); setNewTicker(''); setTickerError(null); setSuggestions([]); }
-          else { setTickerError(t[language].invalidTicker); if (data.suggestions?.length > 0) setSuggestions(data.suggestions); }
-        } catch (err) { setTickers([...tickers, ticker]); setNewTicker(''); setTickerError(null); setSuggestions([]); }
-        finally { setValidating(false); }
+      const addSugg=(t)=>{if(!tickers.includes(t))setTickers([...tickers,t]);setNewT('');setTErr(null);setSugg([])};
+      const rmTicker=(t)=>{if(tickers.length>1)setTickers(tickers.filter(x=>x!==t))};
+
+      const scroll=useCallback((dir)=>{
+        const now=Date.now();if(now-lastScroll.current<250)return;lastScroll.current=now;
+        if(dir==='down'&&idx<news.length-1)setIdx(p=>p+1);
+        else if(dir==='up'&&idx>0)setIdx(p=>p-1);
+      },[idx,news.length]);
+
+      useEffect(()=>{const h=(ev)=>{if(showSet)return;ev.preventDefault();scroll(ev.deltaY>0?'down':'up')};window.addEventListener('wheel',h,{passive:false});return()=>window.removeEventListener('wheel',h)},[scroll,showSet]);
+      useEffect(()=>{let sy=0;const ts=(ev)=>{sy=ev.touches[0].clientY};const te=(ev)=>{if(showSet)return;const d=sy-ev.changedTouches[0].clientY;if(Math.abs(d)>50)scroll(d>0?'down':'up')};window.addEventListener('touchstart',ts);window.addEventListener('touchend',te);return()=>{window.removeEventListener('touchstart',ts);window.removeEventListener('touchend',te)}},[scroll,showSet]);
+      useEffect(()=>{const h=(ev)=>{if(showSet)return;if(ev.key==='ArrowDown'||ev.key===' '){ev.preventDefault();scroll('down')}else if(ev.key==='ArrowUp'){ev.preventDefault();scroll('up')}};window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h)},[scroll,showSet]);
+
+      const tickerColors=['#a855f7','#ec4899','#6366f1','#06b6d4','#f59e0b','#10b981','#f43f5e','#14b8a6','#8b5cf6','#84cc16'];
+      const getTC=(t)=>{const i=tickers.indexOf(t);return i>=0?tickerColors[i%tickerColors.length]:'#6b7280'};
+
+      const tierBgs={
+        breaking:'linear-gradient(160deg,#1a0000 0%,#2d0a0a 30%,#1a0505 100%)',
+        core_positive:'linear-gradient(160deg,#0a1628 0%,#0f2340 50%,#0a1628 100%)',
+        core_negative:'linear-gradient(160deg,#1a0a0a 0%,#2d1010 50%,#1a0a0a 100%)',
+        core_neutral:'linear-gradient(160deg,#0f1114 0%,#1a1d24 50%,#0f1114 100%)',
+        related:'linear-gradient(160deg,#081a0e 0%,#0d2818 50%,#081a0e 100%)',
+        market:'linear-gradient(160deg,#0a0a1e 0%,#10103a 50%,#0a0a1e 100%)',
+        fed:'linear-gradient(160deg,#0f0d0a 0%,#1a1610 50%,#0f0d0a 100%)',
+        politics:'linear-gradient(160deg,#0a1020 0%,#101a35 50%,#0a1020 100%)',
+        uschina:'linear-gradient(160deg,#150a20 0%,#201030 50%,#150a20 100%)',
+        geopolitics:'linear-gradient(160deg,#051520 0%,#0a2535 50%,#051520 100%)',
+        crypto:'linear-gradient(160deg,#1a0f05 0%,#2a1a0a 50%,#1a0f05 100%)',
+        techtrends:'linear-gradient(160deg,#051a12 0%,#0a2a1e 50%,#051a12 100%)',
+        commodities:'linear-gradient(160deg,#1a1005 0%,#2a1a0a 50%,#1a1005 100%)',
+        earnings:'linear-gradient(160deg,#0a0a20 0%,#151530 50%,#0a0a20 100%)',
+        trending:'linear-gradient(160deg,#1a0505 0%,#2a0f0a 50%,#1a0505 100%)'
+      };
+      const getBg=(item)=>{
+        if(item.tier==='core')return tierBgs[`core_${item.impact}`]||tierBgs.core_neutral;
+        return tierBgs[item.tier]||tierBgs.core_neutral;
       };
 
-      const addSuggestion = (ticker) => {
-        if (!tickers.includes(ticker)) setTickers([...tickers, ticker]);
-        setNewTicker(''); setTickerError(null); setSuggestions([]);
-      };
+      const impactConfig={positive:{color:'#4ade80',label:T[lang].pos,dot:'#4ade80'},negative:{color:'#f87171',label:T[lang].neg,dot:'#f87171'},neutral:{color:'#9ca3af',label:T[lang].neu,dot:'#6b7280'}};
+      const isNewTier=(i)=>i===0||news[i].tier!==news[i-1].tier;
 
-      const removeTicker = (ticker) => { if (tickers.length > 1) setTickers(tickers.filter(t => t !== ticker)); };
+      // LOADING
+      if(loading)return e('div',{style:{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#000'}},
+        e('div',{style:{textAlign:'center'}},
+          e('div',{style:{fontSize:56,marginBottom:20}},'📊'),
+          e('div',{style:{color:'rgba(255,255,255,.4)',fontSize:13,letterSpacing:3,textTransform:'uppercase',fontWeight:600}},T[lang].loading)
+        )
+      );
 
-      const handleScroll = useCallback((dir) => {
-        const now = Date.now();
-        if (now - lastScrollTime.current < 250) return;
-        lastScrollTime.current = now;
-        if (dir === 'down' && currentIndex < news.length - 1) setCurrentIndex(p => p + 1);
-        else if (dir === 'up' && currentIndex > 0) setCurrentIndex(p => p - 1);
-      }, [currentIndex, news.length]);
+      // ERROR
+      if(err)return e('div',{style:{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#000',padding:24}},
+        e('div',{className:'glass',style:{maxWidth:420,width:'100%',borderRadius:20,padding:40,textAlign:'center'}},
+          e('div',{style:{fontSize:48,marginBottom:16}},'⚠️'),
+          e('h2',{style:{color:'#fff',fontSize:22,fontWeight:700,marginBottom:8}},T[lang].errTitle),
+          e('p',{style:{color:'rgba(255,255,255,.5)',fontSize:14,marginBottom:24}},T[lang].errMsg),
+          e('button',{onClick:fetchNews,style:{background:'#3b82f6',color:'#fff',border:'none',padding:'12px 32px',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},T[lang].refresh)
+        )
+      );
 
-      useEffect(() => {
-        const h = (ev) => { if (showSettings) return; ev.preventDefault(); handleScroll(ev.deltaY > 0 ? 'down' : 'up'); };
-        window.addEventListener('wheel', h, { passive: false }); return () => window.removeEventListener('wheel', h);
-      }, [handleScroll, showSettings]);
+      // MAIN
+      return e('div',{style:{position:'relative',height:'100vh',width:'100vw',overflow:'hidden',background:'#000'}},
 
-      useEffect(() => {
-        let sy = 0;
-        const ts = (ev) => { sy = ev.touches[0].clientY; };
-        const te = (ev) => { if (showSettings) return; const d = sy - ev.changedTouches[0].clientY; if (Math.abs(d) > 50) handleScroll(d > 0 ? 'down' : 'up'); };
-        window.addEventListener('touchstart', ts); window.addEventListener('touchend', te);
-        return () => { window.removeEventListener('touchstart', ts); window.removeEventListener('touchend', te); };
-      }, [handleScroll, showSettings]);
-
-      useEffect(() => {
-        const h = (ev) => {
-          if (showSettings) return;
-          if (ev.key === 'ArrowDown' || ev.key === ' ') { ev.preventDefault(); handleScroll('down'); }
-          else if (ev.key === 'ArrowUp') { ev.preventDefault(); handleScroll('up'); }
-        };
-        window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h);
-      }, [handleScroll, showSettings]);
-
-      const getTickerColor = (ticker) => {
-        const specials = ['U.S. News','미국 시장','U.S. Market','미국 정치','US Politics','금리·연준','Fed & Rates','미중 경쟁','US-China','지정학','Geopolitics','암호화폐','Crypto','테크 트렌드','Tech Trends','원자재','Commodities','실적 시즌','Earnings'];
-        if (specials.includes(ticker)) return 'bg-gray-600';
-        const colors = ['bg-purple-600','bg-pink-600','bg-indigo-600','bg-cyan-600','bg-amber-600','bg-emerald-600','bg-rose-600','bg-teal-600','bg-violet-600','bg-lime-600'];
-        const idx = tickers.indexOf(ticker);
-        return idx >= 0 ? colors[idx % colors.length] : 'bg-sky-600';
-      };
-
-      const getTierBg = (item) => {
-        const map = { core_positive:'linear-gradient(135deg,#1e3a8a,#1e40af)', core_negative:'linear-gradient(135deg,#7f1d1d,#991b1b)', core_neutral:'linear-gradient(135deg,#1f2937,#374151)', related_positive:'linear-gradient(135deg,#14532d,#166534)', related_neutral:'linear-gradient(135deg,#1e293b,#334155)', market:'linear-gradient(135deg,#1e1b4b,#312e81)', fed:'linear-gradient(135deg,#1c1917,#292524)', politics:'linear-gradient(135deg,#172554,#1e3a5f)', uschina:'linear-gradient(135deg,#3b0764,#581c87)', geopolitics:'linear-gradient(135deg,#0c4a6e,#075985)', crypto:'linear-gradient(135deg,#431407,#7c2d12)', techtrends:'linear-gradient(135deg,#064e3b,#065f46)', commodities:'linear-gradient(135deg,#78350f,#92400e)', earnings:'linear-gradient(135deg,#1e1b4b,#2e1065)', trending:'linear-gradient(135deg,#7f1d1d,#9a3412)' };
-        if (item.tier === 'core') return map[`core_${item.impact}`] || map.core_neutral;
-        if (item.tier === 'related') return map[`related_${item.impact === 'positive' ? 'positive' : 'neutral'}`];
-        return map[item.tier] || map.core_neutral;
-      };
-
-      const getImpactColor = (i) => i==='positive'?'text-green-400':i==='negative'?'text-red-400':'text-gray-400';
-      const isNewTier = (i) => i === 0 || news[i].tier !== news[i-1].tier;
-
-      if (loading) return e('div',{className:'h-screen w-screen flex items-center justify-center bg-black'},e('div',{className:'text-center'},e('div',{className:'text-6xl mb-4'},'📊'),e('p',{className:'text-white text-xl'},t[language].loadingNews)));
-
-      if (error) return e('div',{className:'h-screen w-screen flex items-center justify-center bg-black p-6'},e('div',{className:'text-center max-w-md'},e('div',{className:'bg-red-600 bg-opacity-20 border-2 border-red-600 rounded-2xl p-8'},e('div',{className:'text-6xl text-red-500 mb-4'},'⚠️'),e('h2',{className:'text-white text-2xl font-bold mb-4'},t[language].errorTitle),e('p',{className:'text-gray-300 text-lg mb-6'},t[language].errorContent),e('div',{className:'flex gap-3 justify-center'},e('button',{onClick:fetchNews,className:'bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium'},t[language].refreshNews),e('button',{onClick:()=>setShowSettings(true),className:'bg-gray-700 text-white px-6 py-3 rounded-lg hover:bg-gray-600'},'⚙️')))));
-
-      return e('div',{className:'relative h-screen w-screen overflow-hidden bg-black'},
-        // SETTINGS
-        showSettings && e('div',{className:'absolute inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4',onClick:(ev)=>{if(ev.target===ev.currentTarget){setShowSettings(false);setTickerError(null);setSuggestions([]);}}},
-          e('div',{className:'bg-gray-900 rounded-2xl w-full max-w-md flex flex-col',style:{maxHeight:'85vh'}},
-            e('div',{className:'flex items-center justify-between p-6 pb-4 border-b border-gray-800 flex-shrink-0'},
-              e('h2',{className:'text-2xl font-bold text-white'},t[language].tickerManagement),
-              e('button',{onClick:()=>{setShowSettings(false);setTickerError(null);setSuggestions([]);},className:'text-gray-400 hover:text-white text-2xl'},'✕')
+        // SETTINGS MODAL
+        showSet&&e('div',{style:{position:'absolute',inset:0,background:'rgba(0,0,0,.92)',zIndex:50,display:'flex',alignItems:'center',justifyContent:'center',padding:16},onClick:(ev)=>{if(ev.target===ev.currentTarget){setShowSet(false);setTErr(null);setSugg([])}}},
+          e('div',{className:'glass-strong',style:{width:'100%',maxWidth:440,borderRadius:24,display:'flex',flexDirection:'column',maxHeight:'85vh'}},
+            // Header
+            e('div',{style:{padding:'24px 28px 16px',borderBottom:'1px solid rgba(255,255,255,.08)',flexShrink:0,display:'flex',justifyContent:'space-between',alignItems:'center'}},
+              e('h2',{style:{color:'#fff',fontSize:20,fontWeight:700,letterSpacing:-.5}},T[lang].settings),
+              e('button',{onClick:()=>{setShowSet(false);setTErr(null);setSugg([])},style:{background:'none',border:'none',color:'rgba(255,255,255,.4)',fontSize:20,cursor:'pointer',padding:4}},'✕')
             ),
-            e('div',{className:'flex-1 overflow-y-auto settings-scroll p-6 pt-4'},
-              e('div',{className:'mb-6'},
-                e('label',{className:'text-gray-300 text-sm mb-2 block'},t[language].language),
-                e('div',{className:'flex gap-2'},
-                  e('button',{onClick:()=>setLanguage('ko'),className:`flex-1 py-3 rounded-lg font-medium transition-colors ${language==='ko'?'bg-blue-600 text-white':'bg-gray-800 text-gray-300 hover:bg-gray-700'}`},t[language].korean),
-                  e('button',{onClick:()=>setLanguage('en'),className:`flex-1 py-3 rounded-lg font-medium transition-colors ${language==='en'?'bg-blue-600 text-white':'bg-gray-800 text-gray-300 hover:bg-gray-700'}`},t[language].english)
+            // Scroll area
+            e('div',{className:'scroll-area',style:{flex:1,overflowY:'auto',padding:'20px 28px'}},
+              // Language
+              e('div',{style:{marginBottom:24}},
+                e('div',{style:{color:'rgba(255,255,255,.4)',fontSize:11,fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:10}},T[lang].language),
+                e('div',{style:{display:'flex',gap:8}},
+                  ['ko','en'].map(v=>e('button',{key:v,onClick:()=>setLang(v),style:{flex:1,padding:'10px 0',borderRadius:10,border:lang===v?'1px solid rgba(59,130,246,.5)':'1px solid rgba(255,255,255,.08)',background:lang===v?'rgba(59,130,246,.15)':'rgba(255,255,255,.04)',color:lang===v?'#60a5fa':'rgba(255,255,255,.5)',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'all .2s'}},v==='ko'?T[lang].korean:T[lang].english))
                 )
               ),
-              e('div',{className:'mb-4'},
-                e('label',{className:'text-gray-300 text-sm mb-2 block'},t[language].addNewTicker),
-                e('div',{className:'flex gap-2'},
-                  e('input',{type:'text',value:newTicker,onChange:(ev)=>{setNewTicker(ev.target.value.toUpperCase());setTickerError(null);setSuggestions([]);},onKeyPress:(ev)=>ev.key==='Enter'&&validateAndAdd(),placeholder:'e.g., GOOGL',maxLength:5,className:`flex-1 bg-gray-800 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 ${tickerError?'focus:ring-red-500 ring-2 ring-red-500':'focus:ring-blue-500'}`}),
-                  e('button',{onClick:()=>validateAndAdd(),disabled:validating,className:'bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 text-xl disabled:opacity-50'},validating?'...':'➕')
+              // Add ticker
+              e('div',{style:{marginBottom:20}},
+                e('div',{style:{color:'rgba(255,255,255,.4)',fontSize:11,fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:10}},T[lang].addTicker),
+                e('div',{style:{display:'flex',gap:8}},
+                  e('input',{type:'text',value:newT,onChange:(ev)=>{setNewT(ev.target.value.toUpperCase());setTErr(null);setSugg([])},onKeyDown:(ev)=>ev.key==='Enter'&&validateAdd(),placeholder:'e.g., GOOGL',maxLength:5,style:{flex:1,background:'rgba(255,255,255,.06)',color:'#fff',border:tErr?'1px solid rgba(239,68,68,.5)':'1px solid rgba(255,255,255,.08)',padding:'10px 16px',borderRadius:10,fontSize:14,fontFamily:'inherit',outline:'none'}}),
+                  e('button',{onClick:()=>validateAdd(),disabled:validating,style:{background:'#3b82f6',color:'#fff',border:'none',padding:'10px 20px',borderRadius:10,fontSize:16,cursor:'pointer',opacity:validating?.5:1}},validating?'…':'＋')
                 ),
-                tickerError && e('div',{className:'mt-2 slide-up'},
-                  e('p',{className:'text-red-400 text-sm'},`❌ ${tickerError}`),
-                  suggestions.length>0 && e('div',{className:'mt-2'},
-                    e('p',{className:'text-gray-400 text-xs mb-2'},t[language].didYouMean),
-                    e('div',{className:'flex flex-wrap gap-2'},suggestions.map(s=>e('button',{key:s,onClick:()=>addSuggestion(s),className:'bg-blue-600 bg-opacity-30 text-blue-400 px-3 py-1.5 rounded-lg text-sm hover:bg-opacity-50 border border-blue-600 border-opacity-50'},s)))
+                tErr&&e('div',{className:'slide-up',style:{marginTop:10}},
+                  e('p',{style:{color:'#f87171',fontSize:12}},`✕ ${tErr}`),
+                  sugg.length>0&&e('div',{style:{marginTop:8}},
+                    e('p',{style:{color:'rgba(255,255,255,.3)',fontSize:11,marginBottom:6}},T[lang].didYouMean),
+                    e('div',{style:{display:'flex',flexWrap:'wrap',gap:6}},sugg.map(s=>e('button',{key:s,onClick:()=>addSugg(s),style:{background:'rgba(59,130,246,.12)',color:'#60a5fa',border:'1px solid rgba(59,130,246,.2)',padding:'4px 12px',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},s)))
                   )
                 )
               ),
-              e('div',{className:'mb-4'},
-                e('label',{className:'text-gray-300 text-sm mb-3 block'},`${t[language].currentTickers} (${tickers.length})`),
-                e('div',{className:'space-y-2'},tickers.map(ticker=>e('div',{key:ticker,className:'flex items-center justify-between bg-gray-800 px-4 py-3 rounded-lg'},e('div',{className:'flex items-center gap-3'},e('span',{className:`w-3 h-3 rounded-full ${getTickerColor(ticker)}`}),e('span',{className:'text-white font-medium'},ticker)),tickers.length>1&&e('button',{onClick:()=>removeTicker(ticker),className:'text-red-400 hover:text-red-300 text-lg'},'✕'))))
+              // Tickers list
+              e('div',{style:{marginBottom:16}},
+                e('div',{style:{color:'rgba(255,255,255,.4)',fontSize:11,fontWeight:600,letterSpacing:1,textTransform:'uppercase',marginBottom:10}},`${T[lang].tracking} (${tickers.length})`),
+                e('div',{style:{display:'flex',flexDirection:'column',gap:6}},tickers.map(t=>
+                  e('div',{key:t,style:{display:'flex',alignItems:'center',justifyContent:'space-between',background:'rgba(255,255,255,.04)',padding:'10px 16px',borderRadius:10,border:'1px solid rgba(255,255,255,.06)'}},
+                    e('div',{style:{display:'flex',alignItems:'center',gap:10}},
+                      e('div',{style:{width:8,height:8,borderRadius:4,background:getTC(t)}}),
+                      e('span',{style:{color:'#fff',fontSize:14,fontWeight:600}},t)
+                    ),
+                    tickers.length>1&&e('button',{onClick:()=>rmTicker(t),style:{background:'none',border:'none',color:'rgba(255,255,255,.2)',cursor:'pointer',fontSize:14,padding:4}},'✕')
+                  )
+                ))
               ),
-              e('div',{className:'text-center py-2'},e('span',{className:'text-gray-500 text-xs'},t[language].autoSaved))
+              e('div',{style:{textAlign:'center',padding:'8px 0'}},e('span',{style:{color:'rgba(255,255,255,.2)',fontSize:11}},T[lang].autoSave))
             ),
-            e('div',{className:'p-6 pt-4 border-t border-gray-800 flex-shrink-0'},
-              e('button',{onClick:()=>{fetchNews();setShowSettings(false);setTickerError(null);setSuggestions([]);},className:'w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-medium text-lg'},t[language].refreshNews)
+            // Bottom
+            e('div',{style:{padding:'16px 28px 24px',borderTop:'1px solid rgba(255,255,255,.08)',flexShrink:0}},
+              e('button',{onClick:()=>{fetchNews();setShowSet(false);setTErr(null);setSugg([])},style:{width:'100%',background:'linear-gradient(135deg,#10b981,#059669)',color:'#fff',border:'none',padding:'12px 0',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},T[lang].refresh)
             )
           )
         ),
-        // CONTENT
-        e('div',{className:'h-full w-full',style:{transform:`translateY(-${currentIndex*100}vh)`,transition:'transform 0.4s ease-out'}},
-          news.map((item,index)=>e('div',{key:index,className:'h-screen w-full flex items-center justify-center p-6',style:{background:getTierBg(item)}},
-            e('div',{className:'max-w-2xl w-full'},
-              isNewTier(index)&&e('div',{className:'tier-divider mb-4'},e('span',{className:'text-gray-300 text-sm font-medium px-3 py-1 rounded-full bg-white bg-opacity-10'},item.tierLabel)),
-              e('div',{className:'flex items-center gap-3 mb-5'},
-                e('span',{className:`${getTickerColor(item.ticker)} text-white px-4 py-1.5 rounded-full font-bold text-sm`},item.ticker),
-                e('span',{className:'text-gray-400 text-sm'},item.time),
-                !isNewTier(index)&&e('span',{className:'text-gray-500 text-xs ml-auto hidden sm:inline'},item.tierLabel)
+
+        // NEWS SLIDES
+        e('div',{style:{height:'100%',width:'100%',transform:`translateY(-${idx*100}vh)`,transition:'transform .5s cubic-bezier(.4,0,.2,1)'}},
+          news.map((item,i)=>e('div',{key:i,style:{height:'100vh',width:'100%',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px',background:getBg(item),position:'relative'}},
+            // Subtle grain overlay
+            e('div',{style:{position:'absolute',inset:0,opacity:.03,background:'url(data:image/svg+xml,'+encodeURIComponent('<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".8"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>')+')'},pointerEvents:'none'}),
+            // Content card
+            e('div',{className:`news-card ${item.tier==='breaking'?'breaking-glow':''}`,style:{maxWidth:640,width:'100%',position:'relative',zIndex:1}},
+              // Tier badge
+              isNewTier(i)&&e('div',{className:'fade-up',style:{marginBottom:16}},
+                e('span',{style:{display:'inline-block',padding:'5px 14px',borderRadius:100,fontSize:11,fontWeight:600,letterSpacing:.5,color:'rgba(255,255,255,.7)',background:item.tier==='breaking'?'rgba(239,68,68,.15)':'rgba(255,255,255,.06)',border:item.tier==='breaking'?'1px solid rgba(239,68,68,.2)':'1px solid rgba(255,255,255,.08)'}},item.tierLabel)
               ),
-              e('h1',{className:'text-white text-3xl md:text-4xl font-bold mb-5 leading-tight'},item.title),
-              e('p',{className:'text-gray-200 text-lg md:text-xl leading-relaxed mb-5'},item.content),
-              e('div',{className:'flex items-center justify-between pt-4 border-t border-gray-600 border-opacity-40'},
-                e('span',{className:'text-gray-400 text-sm'},item.source),
-                e('span',{className:`font-medium text-sm ${getImpactColor(item.impact)}`},item.impact==='positive'?t[language].positive:item.impact==='negative'?t[language].negative:t[language].neutral)
+              // Ticker + time
+              e('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:20,flexWrap:'wrap'}},
+                e('span',{className:'ticker-pill',style:{background:item.tier==='breaking'?'rgba(239,68,68,.2)':getTC(item.ticker)+'20',color:item.tier==='breaking'?'#fca5a5':getTC(item.ticker),border:`1px solid ${item.tier==='breaking'?'rgba(239,68,68,.3)':getTC(item.ticker)+'30'}`}},item.ticker),
+                e('span',{style:{color:'rgba(255,255,255,.3)',fontSize:12,fontWeight:500}},item.time),
+                item.dateFormatted&&e('span',{style:{color:'rgba(255,255,255,.15)',fontSize:11,marginLeft:'auto'}},item.dateFormatted)
               ),
-              e('div',{className:'flex justify-center mt-5'},e('span',{className:'text-gray-500 text-sm'},`${currentIndex+1} / ${news.length}`))
+              // Title
+              e('h1',{className:'news-title',style:{color:'#fff',fontSize:item.tier==='breaking'?'2rem':'1.75rem',fontWeight:800,lineHeight:1.3,marginBottom:16,letterSpacing:-.5}},item.title),
+              // Content
+              e('p',{className:'news-content',style:{color:'rgba(255,255,255,.55)',fontSize:'1.05rem',lineHeight:1.7,marginBottom:20,fontWeight:400}},item.content),
+              // Footer
+              e('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:16,borderTop:'1px solid rgba(255,255,255,.06)'}},
+                e('span',{style:{color:'rgba(255,255,255,.25)',fontSize:12,fontWeight:500}},item.source),
+                e('div',{style:{display:'flex',alignItems:'center',gap:6}},
+                  e('span',{className:'impact-dot',style:{background:impactConfig[item.impact]?.dot||'#6b7280'}}),
+                  e('span',{style:{color:impactConfig[item.impact]?.color||'#9ca3af',fontSize:12,fontWeight:600}},impactConfig[item.impact]?.label||'')
+                )
+              )
             )
           ))
         ),
+
         // TOP BAR
-        e('div',{className:'absolute top-4 right-4 flex items-center gap-3 z-40'},
-          e('span',{className:'text-gray-300 text-sm bg-black bg-opacity-60 px-3 py-1.5 rounded-full backdrop-blur'},`${currentIndex+1}/${news.length}`),
-          e('button',{onClick:()=>{setShowSettings(true);setTickerError(null);setSuggestions([]);},className:'bg-gray-800 bg-opacity-80 text-white w-10 h-10 rounded-full hover:bg-opacity-100 flex items-center justify-center text-lg'},'⚙️')
+        e('div',{style:{position:'absolute',top:16,right:16,display:'flex',alignItems:'center',gap:10,zIndex:40}},
+          // Refresh button
+          e('button',{onClick:fetchNews,style:{background:'rgba(255,255,255,.06)',backdropFilter:'blur(20px)',border:'1px solid rgba(255,255,255,.08)',color:'rgba(255,255,255,.5)',width:36,height:36,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:14},title:T[lang].refresh},'↻'),
+          // Counter
+          e('div',{className:'glass',style:{padding:'6px 14px',borderRadius:10,fontSize:12,fontWeight:600,color:'rgba(255,255,255,.5)'}},`${idx+1} / ${news.length}`),
+          // Settings
+          e('button',{onClick:()=>{setShowSet(true);setTErr(null);setSugg([])},style:{background:'rgba(255,255,255,.06)',backdropFilter:'blur(20px)',border:'1px solid rgba(255,255,255,.08)',color:'rgba(255,255,255,.5)',width:36,height:36,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:14}},'⚙')
         ),
-        currentIndex>0&&e('button',{onClick:()=>handleScroll('up'),className:'absolute top-16 left-1/2 transform -translate-x-1/2 text-white text-2xl opacity-20 hover:opacity-70 z-40'},'▲'),
-        currentIndex<news.length-1&&e('button',{onClick:()=>handleScroll('down'),className:'absolute bottom-6 left-1/2 transform -translate-x-1/2 text-white text-2xl opacity-20 hover:opacity-70 z-40'},'▼')
+
+        // BRAND
+        e('div',{style:{position:'absolute',top:18,left:20,zIndex:40}},
+          e('span',{style:{color:'rgba(255,255,255,.12)',fontSize:13,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}},'ScrollStock')
+        ),
+
+        // NAV ARROWS
+        idx>0&&e('button',{onClick:()=>scroll('up'),style:{position:'absolute',top:60,left:'50%',transform:'translateX(-50%)',background:'none',border:'none',color:'rgba(255,255,255,.1)',fontSize:18,cursor:'pointer',zIndex:40,padding:8}},'▲'),
+        idx<news.length-1&&e('button',{onClick:()=>scroll('down'),style:{position:'absolute',bottom:20,left:'50%',transform:'translateX(-50%)',background:'none',border:'none',color:'rgba(255,255,255,.1)',fontSize:18,cursor:'pointer',zIndex:40,padding:8}},'▼'),
+
+        // Progress bar
+        e('div',{style:{position:'absolute',bottom:0,left:0,height:2,background:'linear-gradient(90deg,#3b82f6,#8b5cf6)',width:`${((idx+1)/news.length)*100}%`,transition:'width .5s ease',zIndex:40}})
       );
     }
 
     window.addEventListener('load',()=>{
-      if(typeof React!=='undefined'&&typeof ReactDOM!=='undefined') ReactDOM.createRoot(document.getElementById('root')).render(e(StockNewsApp));
-      else document.getElementById('root').innerHTML='<div style="color:white;text-align:center;padding-top:40vh;">React failed to load.</div>';
+      if(typeof React!=='undefined'&&typeof ReactDOM!=='undefined')ReactDOM.createRoot(document.getElementById('root')).render(e(App));
     });
   </script>
 </body>
