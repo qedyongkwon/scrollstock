@@ -1,7 +1,7 @@
 {
-  "name": "stock-news-web",
-  "version": "2.0.0",
-  "description": "미국 주식 뉴스 웹앱",
+  "name": "scrollstock",
+  "version": "3.0.0",
+  "description": "ScrollStock — 미국 주식 뉴스",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
